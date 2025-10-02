@@ -260,5 +260,3 @@ parser.add_argument("--new-option", help="Description")
 - **Purpose**: Publicly accessible vulnerable test site
 - **Usage**: No authentication required
 - **Advantage**: Quick testing without local setup
-
-This documentation provides the essential information developers need to understand, extend, and maintain the security scanner while avoiding duplication with the academic proposal document.
