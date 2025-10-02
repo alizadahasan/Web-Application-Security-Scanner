@@ -13,11 +13,14 @@ def parse_args():
     """Parse command line arguments for the security scanner."""
     parser = argparse.ArgumentParser(description="Web Application Security Scanner")
     parser.add_argument("--url", required=True, help="Target URL to scan")
-    parser.add_argument("--modules", default="sqli,xss,csrf", help="Comma-separated modules to run (sqli,xss,csrf)")
+    parser.add_argument("--modules", default="sqli,xss,csrf", help="Comma-separated modules to run (sqli,xss,csrf,all)")
     parser.add_argument("--cookies", help="Cookies for authenticated requests (e.g., 'key=value;key2=value2')")
     parser.add_argument("--outdir", default="reports", help="Output directory for reports")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Verbosity level (e.g., -v, -vv)")
     parser.add_argument("--delay", type=float, default=0.5, help="Delay between requests (seconds)")
+    # Add crawl option
+    parser.add_argument("--crawl", action="store_true", help="Enable crawling to discover URLs before scanning")
+    parser.add_argument("--max-pages", type=int, default=50, help="Maximum pages to crawl (default: 50)")
     return parser.parse_args()
 
 def deduplicate_findings(findings):
@@ -31,6 +34,16 @@ def deduplicate_findings(findings):
             seen.add(key)
             unique_findings.append(finding)
     return unique_findings
+
+def get_modules_to_scan(modules_arg):
+    """Parse modules argument and return list of modules to scan."""
+    modules_list = [m.strip() for m in modules_arg.split(",") if m.strip()]
+    
+    # Handle "all" keyword
+    if "all" in modules_list:
+        return ["sqli", "xss", "csrf"]
+    
+    return modules_list
 
 def main():
     """Main entry point for the security scanner application."""
@@ -50,16 +63,33 @@ def main():
         "csrf": lambda: CSRFScanner(logger, http, delay_between_requests=args.delay)
     }
     
-    # Process each requested module
-    modules_list = [m.strip() for m in args.modules.split(",") if m.strip()]
-    for module in modules_list:
-        if module in scanners:
-            scanner = scanners[module]()
-            module_findings = scanner.scan(args.url)
-            findings.extend(module_findings)
-            logger.info(f"{scanner.__class__.__name__} completed: {len(module_findings)} finding(s).")
-        else:
-            logger.warn(f"Unknown module: {module}")
+    # Parse modules (handle "all" keyword)
+    modules_list = get_modules_to_scan(args.modules)
+    logger.info(f"Modules to run: {', '.join(modules_list)}")
+    
+    # Determine which URLs to scan
+    urls_to_scan = [args.url]
+    
+    # If crawl is enabled, discover URLs first
+    if args.crawl:
+        logger.info(f"Crawling enabled. Discovering URLs (max: {args.max_pages} pages)...")
+        crawler = Crawler(http, logger, max_pages=args.max_pages, delay_between_requests=args.delay)
+        discovered = crawler.crawl(args.url)
+        urls_to_scan = [url for url, soup in discovered]
+        logger.info(f"Crawler discovered {len(urls_to_scan)} URLs to scan")
+    
+    # Process each requested module for each URL
+    for url in urls_to_scan:
+        logger.info(f"Scanning URL: {url}")
+        for module in modules_list:
+            if module in scanners:
+                scanner = scanners[module]()
+                module_findings = scanner.scan(url)
+                findings.extend(module_findings)
+                if module_findings:
+                    logger.info(f"{scanner.__class__.__name__} found {len(module_findings)} vulnerability(s) in {url}")
+            else:
+                logger.warn(f"Unknown module: {module}")
     
     # Deduplicate findings to avoid reporting the same vulnerability multiple times
     findings = deduplicate_findings(findings)
