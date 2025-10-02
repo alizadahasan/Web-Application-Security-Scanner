@@ -10,6 +10,7 @@ from modules.checks_csrf import CSRFScanner
 from modules.crawler import Crawler
 
 def parse_args():
+    """Parse command line arguments for the security scanner."""
     parser = argparse.ArgumentParser(description="Web Application Security Scanner")
     parser.add_argument("--url", required=True, help="Target URL to scan")
     parser.add_argument("--modules", default="sqli,xss,csrf", help="Comma-separated modules to run (sqli,xss,csrf)")
@@ -24,6 +25,7 @@ def deduplicate_findings(findings):
     seen = set()
     unique_findings = []
     for finding in findings:
+        # Create unique key from finding attributes to identify duplicates
         key = (finding["url"], finding.get("param", ""), finding["type"], finding["location"])
         if key not in seen:
             seen.add(key)
@@ -31,20 +33,24 @@ def deduplicate_findings(findings):
     return unique_findings
 
 def main():
+    """Main entry point for the security scanner application."""
+    # Parse command line arguments and initialize components
     args = parse_args()
     logger = Logger(args.verbose)
     http = HttpClient(cookies=args.cookies)
-    report = Report(args.url, args.outdir)  # Pass both url and outdir
-
+    report = Report(args.url, args.outdir)
+    
     logger.info(f"Starting scan against: {args.url}")
     findings = []
-
+    
+    # Scanner factory - maps module names to scanner classes
     scanners = {
         "sqli": lambda: SQLInjectionScanner(logger, http, delay_between_requests=args.delay),
         "xss": lambda: XSSScanner(logger, http, delay_between_requests=args.delay),
         "csrf": lambda: CSRFScanner(logger, http, delay_between_requests=args.delay)
     }
-
+    
+    # Process each requested module
     modules_list = [m.strip() for m in args.modules.split(",") if m.strip()]
     for module in modules_list:
         if module in scanners:
@@ -54,11 +60,11 @@ def main():
             logger.info(f"{scanner.__class__.__name__} completed: {len(module_findings)} finding(s).")
         else:
             logger.warn(f"Unknown module: {module}")
-
-    # Deduplicate findings
+    
+    # Deduplicate findings to avoid reporting the same vulnerability multiple times
     findings = deduplicate_findings(findings)
-
-    # Summarize findings by type
+    
+    # Generate summary statistics
     if findings:
         sqli_count = sum(1 for f in findings if f["type"] == "SQL Injection")
         xss_count = sum(1 for f in findings if f["type"] == "Cross-Site Scripting (XSS)")
@@ -66,27 +72,25 @@ def main():
         logger.info(f"Scan complete. Summary: {sqli_count} SQL Injection, {xss_count} XSS, {csrf_count} CSRF findings.")
     else:
         logger.info("Scan complete. No vulnerabilities found.")
-
-    # Add findings to report
+    
+    # Add all findings to the report
     for finding in findings:
         report.add_finding(finding)
-
-    # Ensure output directory exists
+    
+    # Ensure output directory exists and generate report
     os.makedirs(args.outdir, exist_ok=True)
-    # Generate report filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_file = os.path.join(args.outdir, f"report_{timestamp}.txt")
-    # Write report
+    
+    # Write the report file
     written = report.write_text(args.url, timestamp)
     if written:
         logger.success(f"Detailed findings saved to: {written}")
     else:
         logger.error("Failed to write detailed report")
-
-    # Exit with code 1 if findings exist
-    if findings:
-        exit(1)
-    exit(0)
+    
+    # Exit with code 1 if vulnerabilities found, 0 if clean
+    exit(1 if findings else 0)
 
 if __name__ == "__main__":
     main()

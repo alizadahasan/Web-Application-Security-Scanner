@@ -5,6 +5,7 @@ from modules.checks_xss import XSSScanner
 from modules.sql_injection import SQLInjectionScanner
 
 class MockHttpClient:
+    """Mock HTTP client for testing - simulates web server responses without network calls."""
     def __init__(self, html_map):
         # html_map is dict: url -> html response (simple)
         self.html_map = html_map
@@ -23,8 +24,9 @@ class MockHttpClient:
         # Use url as-is for test mapping
         return SimpleNamespace(text=self.html_map.get(url, ""), headers={}, status_code=200)
 
-# ---------------- CSRF ----------------
+# ---------------- CSRF Test Cases ----------------
 def test_csrf_detection():
+    """Test CSRF detection on form without protection tokens."""
     html = """<form method="POST" action="/transfer.php">
         <input type="text" name="amount"/>
         <input type="text" name="recipient"/>
@@ -35,6 +37,7 @@ def test_csrf_detection():
     assert "lacks an obvious CSRF token" in findings[0]["evidence"]
 
 def test_csrf_token_present_and_enforced():
+    """Test CSRF detection on form with protection tokens."""
     html = """<form method="POST" action="/transfer.php">
         <input type="text" name="amount"/>
         <input type="hidden" name="csrf_token" value="abc123"/>
@@ -48,8 +51,9 @@ def test_csrf_token_present_and_enforced():
     findings = scanner.scan("http://test.local")
     assert isinstance(findings, list)
 
-# ---------------- XSS ----------------
+# ---------------- XSS Test Cases ----------------
 def test_xss_reflected_marker():
+    """Test XSS detection when marker appears in script context."""
     marker = "XSSMARKER_1234"
     html = f"<html><body><script>{marker}</script></body></html>"
     client = MockHttpClient({"http://test.local?name=test": html})
@@ -58,19 +62,22 @@ def test_xss_reflected_marker():
     assert results is True
 
 def test_xss_detects_script_tag_alert():
+    """Test XSS detection with actual alert script."""
     html = "<html><body><script>alert(1)</script></body></html>"
     client = MockHttpClient({"http://test.local": html})
     scanner = XSSScanner(None, client)
     assert scanner._is_xss(html, "alert(1)") is True
 
-# ---------------- SQL Injection ----------------
+# ---------------- SQL Injection Test Cases ----------------
 def test_sqli_error_based():
+    """Test SQL injection detection via error message patterns."""
     html_error = "You have an error in your SQL syntax;"
     # Map full query URL to match extractor expectations
     scanner = SQLInjectionScanner(None, MockHttpClient({"http://test.local?id=1": html_error}))
     assert scanner._contains_sql_error(html_error) is True
 
 def test_sqli_basic_boolean_confirmation():
+    """Test boolean-based SQL injection confirmation."""
     true_url = "http://test.local/path?param=1%27+AND+%271%27%3D%271"
     false_url = "http://test.local/path?param=1%27+AND+%271%27%3D%272"
     client_map = {
