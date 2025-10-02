@@ -2,8 +2,9 @@ import requests
 import time
 
 class HttpClient:
-    def __init__(self, cookies=None):
+    def __init__(self, cookies=None, timeout=5):
         self.session = requests.Session()
+        self.timeout = timeout
         if cookies:
             self.session.cookies.update(self._parse_cookies(cookies))
 
@@ -20,7 +21,7 @@ class HttpClient:
         """Perform GET request with retries and exponential backoff."""
         for attempt in range(retries):
             try:
-                response = self.session.get(url, params=params, timeout=5)
+                response = self.session.get(url, params=params, timeout=self.timeout)
                 # Do NOT raise for status to allow scanning of 500 responses
                 return response
             except requests.exceptions.RequestException as e:
@@ -36,7 +37,7 @@ class HttpClient:
         """Perform POST request with retries and exponential backoff."""
         for attempt in range(retries):
             try:
-                response = self.session.post(url, data=data, timeout=5)
+                response = self.session.post(url, data=data, timeout=self.timeout)
                 # Do NOT raise for status
                 return response
             except requests.exceptions.RequestException as e:

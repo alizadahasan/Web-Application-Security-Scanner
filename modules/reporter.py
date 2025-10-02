@@ -12,10 +12,22 @@ class Report:
     def add_finding(self, finding):
         self.findings.append(finding)
 
+    def _sanitize_evidence(self, evidence, maxlen=4000):
+        if not evidence:
+            return "No response content"
+        # Collapse whitespace and strip control characters
+        safe = " ".join(evidence.split())
+        # Escape angle brackets so the text file won't accidentally be interpreted by an HTML renderer
+        safe = safe.replace("<", "&lt;").replace(">", "&gt;")
+        # Truncate
+        if len(safe) > maxlen:
+            return safe[:maxlen] + " ...[truncated]"
+        return safe
+
     def write_text(self, url, timestamp):
         filename = os.path.join(self.outdir, f"report_{timestamp}.txt")
         try:
-            with open(filename, "w") as f:
+            with open(filename, "w", encoding="utf-8") as f:
                 f.write("=" * 50 + "\n")
                 f.write(f"Scan Report for {url}\n")
                 f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -35,10 +47,9 @@ class Report:
                     f.write(f"Method   : {finding.get('method', '')}\n")
                     f.write(f"Parameter: {finding.get('param', '')}\n")
                     f.write(f"Payload  : {finding.get('payload', '')}\n")
-                    f.write(f"Evidence : {finding.get('evidence', '')}\n")
+                    evidence = self._sanitize_evidence(finding.get('evidence', ''))
+                    f.write(f"Evidence : {evidence}\n")
                     f.write("-" * 50 + "\n")
-            if not os.path.exists(filename):
-                raise OSError("Failed to create report file")
             return filename
         except OSError as e:
             print(f"[ERROR] Failed to write report to {filename}: {str(e)}")

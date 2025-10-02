@@ -7,6 +7,7 @@ from modules.reporter import Report
 from modules.sql_injection import SQLInjectionScanner
 from modules.checks_xss import XSSScanner
 from modules.checks_csrf import CSRFScanner
+from modules.crawler import Crawler
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Web Application Security Scanner")
@@ -15,6 +16,7 @@ def parse_args():
     parser.add_argument("--cookies", help="Cookies for authenticated requests (e.g., 'key=value;key2=value2')")
     parser.add_argument("--outdir", default="reports", help="Output directory for reports")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Verbosity level (e.g., -v, -vv)")
+    parser.add_argument("--delay", type=float, default=0.5, help="Delay between requests (seconds)")
     return parser.parse_args()
 
 def deduplicate_findings(findings):
@@ -38,15 +40,15 @@ def main():
     findings = []
 
     scanners = {
-        "sqli": SQLInjectionScanner,
-        "xss": XSSScanner,
-        "csrf": CSRFScanner
+        "sqli": lambda: SQLInjectionScanner(logger, http, delay_between_requests=args.delay),
+        "xss": lambda: XSSScanner(logger, http, delay_between_requests=args.delay),
+        "csrf": lambda: CSRFScanner(logger, http, delay_between_requests=args.delay)
     }
 
-    modules = args.modules.split(",")
-    for module in modules:
+    modules_list = [m.strip() for m in args.modules.split(",") if m.strip()]
+    for module in modules_list:
         if module in scanners:
-            scanner = scanners[module](logger, http)
+            scanner = scanners[module]()
             module_findings = scanner.scan(args.url)
             findings.extend(module_findings)
             logger.info(f"{scanner.__class__.__name__} completed: {len(module_findings)} finding(s).")
@@ -75,8 +77,11 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_file = os.path.join(args.outdir, f"report_{timestamp}.txt")
     # Write report
-    report.write_text(args.url, timestamp)
-    logger.success(f"Detailed findings saved to: {report_file}")
+    written = report.write_text(args.url, timestamp)
+    if written:
+        logger.success(f"Detailed findings saved to: {written}")
+    else:
+        logger.error("Failed to write detailed report")
 
     # Exit with code 1 if findings exist
     if findings:
