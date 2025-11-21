@@ -1,93 +1,262 @@
-# Alizada Hasan 2025
+# Web Application Security Scanner - Developer Documentation
 
 
 
-## Getting started
+## Project Overview:
+This is the developer documentation for the Python-based Web Application Security Scanner. For user documentation and project proposal, refer to the main pdf document.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.mff.cuni.cz/teaching/nprg045/kopecky/Alizada_Hasan_2025.git
-git branch -M master
-git push -uf origin master
+### Installation:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## Integrate with your tools
+### Running the Scanner
 
-- [ ] [Set up project integrations](https://gitlab.mff.cuni.cz/teaching/nprg045/kopecky/Alizada_Hasan_2025/-/settings/integrations)
+#### Basic Public Site Scanning
+```bash
+# Scan TestPHP (public test site)
+python3 scanner.py --url "http://testphp.vulnweb.com" --modules sqli,xss,csrf
 
-## Collaborate with your team
+# Targeted scan on specific endpoint
+python3 scanner.py --url "http://testphp.vulnweb.com/listproducts.php?cat=1" --modules sqli
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+#### DVWA Scanning (Local Installation)
+```bash
+# Basic DVWA scan (requires authentication)
+python3 scanner.py --url "http://127.0.0.1/dvwa/vulnerabilities/sqli/" --cookies "PHPSESSID=abc123; security=low" --modules sqli -v
 
-## Test and Deploy
+# XSS scanning on DVWA
+python3 scanner.py --url "http://127.0.0.1/dvwa/vulnerabilities/xss_r/" --cookies "PHPSESSID=abc123; security=low" --modules xss -v
 
-Use the built-in continuous integration in GitLab.
+# CSRF scanning on DVWA  
+python3 scanner.py --url "http://127.0.0.1/dvwa/vulnerabilities/csrf/" --cookies "PHPSESSID=abc123; security=low" --modules csrf -v
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+```
+### Comprehensive scan with crawling
+```bash
+python3 scanner.py --url "http://testphp.vulnweb.com" --crawl --modules all -v                    
 
-***
+```
 
-# Editing this README
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## Architecture & Module Structure
 
-## Suggestions for a good README
+### Core Components
+```
+scanner.py                 # Main CLI controller
+modules/
+├── crawler.py            # URL discovery (BFS algorithm)
+├── extractor.py          # HTTP client with session management
+├── sql_injection.py      # SQLi detection engine
+├── checks_xss.py         # XSS detection engine  
+├── checks_csrf.py        # CSRF detection engine
+└── reporter.py           # Report generation
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### Module Interface Contract
+All detection modules must implement:
 
-## Name
-Choose a self-explaining name for your project.
+```python
+class VulnerabilityScanner:
+    def __init__(self, logger, http, delay_between_requests=0.5):
+        self.logger = logger
+        self.http = http
+        self.delay = delay_between_requests
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+    def scan(self, url: str) -> List[Dict]:
+        """Returns list of finding dictionaries"""
+        pass
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Adding New Detection Modules
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### 1. Create Module File
+Create `modules/your_detector.py`:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```python
+from modules.init import Logger
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+class YourVulnerabilityScanner:
+    def __init__(self, logger=None, http=None, delay_between_requests=0.5):
+        self.logger = logger if logger is not None else Logger(verbosity=0)
+        self.http = http
+        self.delay = delay_between_requests
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+    def scan(self, url: str):
+        findings = []
+        # Your detection logic here
+        
+        finding = {
+            "type": "Your Vulnerability Type",
+            "location": "query|form",
+            "url": url,
+            "method": "GET|POST", 
+            "param": "parameter_name",
+            "payload": "test_payload",
+            "evidence": "proof_of_vulnerability"
+        }
+        findings.append(finding)
+        return findings
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+### 2. Register Module
+In `scanner.py`, add to scanners dictionary:
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```python
+scanners = {
+    "sqli": lambda: SQLInjectionScanner(logger, http, args.delay),
+    "xss": lambda: XSSScanner(logger, http, args.delay),
+    "csrf": lambda: CSRFScanner(logger, http, args.delay),
+    "your_module": lambda: YourVulnerabilityScanner(logger, http, args.delay)
+}
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### 3. Add Tests
+Create tests in `tests/test_your_detector.py`:
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```python
+def test_your_detector_basic():
+    html = "vulnerable response content"
+    client = MockHttpClient({"http://test.local": html})
+    scanner = YourVulnerabilityScanner(None, client)
+    results = scanner.scan("http://test.local")
+    assert len(results) > 0
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Core Algorithm Details
 
-## License
-For open source projects, say how it is licensed.
+### SQL Injection Detection
+**Multi-phase approach:**
+1. **Error-based**: Pattern matching on database errors
+2. **Boolean-based**: Differential analysis (`1' AND '1'='1` vs `1' AND '1'='2`)
+3. **Time-based**: Response timing analysis (disabled by default)
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+**Key data structures:**
+```python
+BASIC_PAYLOADS = ["' OR '1'='1", "' OR 1=1 --", ...]
+SQL_ERRORS = ["SQL syntax", "mysql_fetch", "ORA-", ...]
+TIME_PAYLOADS = ["' OR SLEEP(3)--", ...]
+```
+
+### XSS Detection  
+**Context-aware analysis:**
+- Script tag content detection
+- Event handler attribute analysis  
+- HTML element creation detection
+- JSON reflection identification
+
+**Unique marker system prevents false positives:**
+```python
+marker = f"XSSMARKER_{uuid.uuid4().hex[:8]}"
+```
+
+### CSRF Detection
+**Protection identification:**
+- Token field detection (`csrf_token`, `authenticity_token`, etc.)
+- Enforcement testing (with/without token comparison)
+- Header validation checks
+
+## Crawler Implementation
+
+### Usage
+```bash
+# Integrated scanning  
+python3 scanner.py --url "http://example.com" --crawl --modules sqli,xss
+```
+
+### Algorithm
+- **BFS-based** URL discovery
+- **Same-domain** confinement
+- **Form extraction** with method/action resolution
+- **Configurable limits** (max pages, delay between requests)
+
+## Reporting System Integration
+
+### Adding Findings
+All detectors use consistent finding format:
+
+```python
+finding = {
+    "type": "Vulnerability Type",
+    "location": "query",  # or "form"
+    "url": "http://example.com/vulnerable",
+    "method": "GET",
+    "param": "id",
+    "payload": "test'payload",
+    "evidence": "Error: SQL syntax..."
+}
+```
+
+### Report Generation
+- Automatic evidence sanitization
+- Timestamped report files
+- Structured text format
+- JSON output available
+
+## Testing Framework
+
+### Running Tests
+```bash
+python -m pytest tests/ -v
+```
+
+### Test Structure
+- `MockHttpClient` for simulated responses
+- Unit tests for each detection algorithm
+- Integration tests for full workflows
+- False positive/negative validation
+
+### Example Test
+```python
+class MockHttpClient:
+    def __init__(self, html_map):
+        self.html_map = html_map
+    
+    def get(self, url, params=None):
+        return SimpleNamespace(text=self.html_map.get(url, ""), status_code=200)
+```
+
+## Extension Examples
+
+### Adding New Payloads
+**SQLi:** Add to `BASIC_PAYLOADS` in `sql_injection.py`  
+**XSS:** Add to `self.payloads` in `checks_xss.py.__init__()`  
+**CSRF:** Add patterns to `TOKEN_KEYWORDS` in `checks_csrf.py`
+
+### Adding Configuration
+Modify `parse_args()` in `scanner.py` for new CLI options:
+
+```python
+parser.add_argument("--new-option", help="Description")
+```
+
+## Performance Considerations
+
+- Configurable delays between requests (default: 0.5s)
+- Early termination when vulnerability confirmed
+- Cached baseline responses for comparison
+- Limited crawler discovery to prevent infinite loops
+
+## Security & Ethics
+
+- Never scan production systems without permission
+- Non-destructive payloads by default
+- Rate limiting to avoid service disruption
+- Clear educational purpose statements
+
+## Test Applications
+
+### DVWA (Damn Vulnerable Web Application)
+- **Purpose**: Local PHP/MySQL application for security training
+- **Usage**: Requires authentication with session cookies
+- **Security Levels**: Test with "low" security setting initially
+- **Setup**: Requires local web server (Apache/Nginx) and MySQL
+
+### TestPHP (testphp.vulnweb.com)
+- **Purpose**: Publicly accessible vulnerable test site
+- **Usage**: No authentication required
+- **Advantage**: Quick testing without local setup
