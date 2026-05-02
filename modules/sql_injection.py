@@ -325,9 +325,6 @@ class SQLInjectionScanner:
                 if abs(len(body1) - len(body2)) > 30:
                     self.logger.debug("Boolean confirmation: length difference")
                     return True
-                if body1 != body2:
-                    self.logger.debug("Boolean confirmation: body content differs")
-                    return True
             except Exception as e:
                 self.logger.debug(f"Boolean confirmation failed: {e}")
                 continue
@@ -382,8 +379,6 @@ class SQLInjectionScanner:
             b1 = r_true.text.strip()
             b2 = r_false.text.strip()
             if abs(len(b1) - len(b2)) > 30:
-                return True
-            if b1 != b2:
                 return True
         except Exception:
             return False

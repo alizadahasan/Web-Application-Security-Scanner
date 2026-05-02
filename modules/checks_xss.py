@@ -194,8 +194,8 @@ class XSSScanner:
                 return False
                 
             if search_marker(data):
-                self.logger.debug("XSS marker found in JSON response (potential)")
-                return True
+                self.logger.debug("Marker found in JSON response, but not in executable HTML context")
+                return False
         except json.JSONDecodeError:
             pass
 

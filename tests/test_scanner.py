@@ -46,6 +46,15 @@ def test_csrf_detection():
     assert len(findings) == 1
     assert "lacks an obvious CSRF token" in findings[0]["evidence"]
 
+def test_csrf_ignores_get_form_without_token():
+    """Test CSRF scanner does not flag harmless GET search forms."""
+    html = """<form method="GET" action="/search">
+        <input type="text" name="q"/>
+    </form>"""
+    scanner = CSRFScanner(None, MockHttpClient({"http://test.local": html}))
+    findings = scanner.scan("http://test.local")
+    assert findings == []
+
 def test_csrf_token_present_and_enforced():
     """Test CSRF detection on form with protection tokens."""
     html = """<form method="POST" action="/transfer.php">
@@ -78,6 +87,13 @@ def test_xss_detects_script_tag_alert():
     scanner = XSSScanner(None, client)
     assert scanner._is_xss(html, "alert(1)") is True
 
+def test_xss_does_not_flag_json_marker_reflection():
+    """Test JSON marker reflection is not treated as executable XSS."""
+    marker = "XSSMARKER_1234"
+    html = f'{{"name": "{marker}"}}'
+    scanner = XSSScanner(None, MockHttpClient({"http://test.local": html}))
+    assert scanner._is_xss(html, marker) is False
+
 # ---------------- SQL Injection Test Cases ----------------
 def test_sqli_error_based():
     """Test SQL injection detection via error message patterns."""
@@ -98,4 +114,30 @@ def test_sqli_basic_boolean_confirmation():
     scanner = SQLInjectionScanner(None, client)
     original_params = {"param": ["1"]}
     res = scanner._confirm_boolean("http://test.local/path?param=1", "param", original_params)
-    assert res is True
+    assert res is False
+
+def test_sqli_boolean_confirmation_requires_significant_difference():
+    """Test small body differences alone do not confirm SQL injection."""
+    true_url = "http://test.local/path?param=1%27+AND+%271%27%3D%271"
+    false_url = "http://test.local/path?param=1%27+AND+%271%27%3D%272"
+    client_map = {
+        true_url: "Hello Alice",
+        false_url: "Hello Bob",
+    }
+    client = MockHttpClient(client_map)
+    scanner = SQLInjectionScanner(None, client)
+    original_params = {"param": ["1"]}
+    assert scanner._confirm_boolean("http://test.local/path?param=1", "param", original_params) is False
+
+def test_sqli_boolean_confirmation_accepts_large_length_difference():
+    """Test large response length differences can still confirm SQL injection."""
+    true_url = "http://test.local/path?param=1%27+AND+%271%27%3D%271"
+    false_url = "http://test.local/path?param=1%27+AND+%271%27%3D%272"
+    client_map = {
+        true_url: "A" * 100,
+        false_url: "B",
+    }
+    client = MockHttpClient(client_map)
+    scanner = SQLInjectionScanner(None, client)
+    original_params = {"param": ["1"]}
+    assert scanner._confirm_boolean("http://test.local/path?param=1", "param", original_params) is True

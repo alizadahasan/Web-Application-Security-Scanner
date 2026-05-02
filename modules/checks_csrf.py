@@ -63,7 +63,11 @@ class CSRFScanner:
                     candidate_tokens.append(name)
 
             if not candidate_tokens:
-                # No obvious token fields found - report as vulnerable
+                if method != "POST":
+                    self.logger.debug(f"Skipping {method} form at {urljoin(url, action)} without CSRF token.")
+                    continue
+
+                # No obvious token fields found on a state-changing form - report as vulnerable
                 self.logger.debug(f"Form {method} {urljoin(url, action)} missing obvious CSRF token.")
                 findings.append({
                     "type": "Cross-Site Request Forgery (CSRF)",
