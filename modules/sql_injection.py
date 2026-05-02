@@ -1,7 +1,6 @@
 import time
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, urljoin
-import requests
 from modules.init import Logger
 
 # Basic SQL injection payloads for initial detection
@@ -91,7 +90,6 @@ class SQLInjectionScanner:
         # Get baseline response for comparison
         baseline_resp = self.http.get(url)
         baseline_text = baseline_resp.text if baseline_resp else ""
-        baseline_status = baseline_resp.status_code if baseline_resp else 200
         
         original_params = {k: list(v) for k, v in params.items()}
 
@@ -196,7 +194,6 @@ class SQLInjectionScanner:
                 baseline_resp = self.http.get(target_url, params=baseline_data)
                 
             baseline_text = baseline_resp.text if baseline_resp else ""
-            baseline_status = baseline_resp.status_code if baseline_resp else 200
             
             if not baseline_resp:
                 self.logger.debug(f"Baseline request failed for {target_url}")
