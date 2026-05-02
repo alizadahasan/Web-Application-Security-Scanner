@@ -1,6 +1,7 @@
 import argparse
 import os
 from datetime import datetime
+from urllib.parse import urlparse
 from modules.init import Logger
 from modules.extractor import HttpClient
 from modules.reporter import Report
@@ -95,6 +96,10 @@ Examples:
     )
     
     args = parser.parse_args()
+
+    parsed_url = urlparse(args.url)
+    if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
+        parser.error("--url must be a valid absolute HTTP or HTTPS URL")
     
     # Validate timeout value
     if args.timeout <= 0:

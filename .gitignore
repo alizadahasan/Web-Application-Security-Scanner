@@ -30,7 +30,6 @@ htmlcov/
 reports/
 *.txt
 !requirements.txt
-!curl_cookies.txt
 
 # Egg info
 *.egg-info/
