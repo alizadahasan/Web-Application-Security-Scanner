@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from datetime import datetime
 from urllib.parse import urlparse
 from modules.init import Logger
@@ -230,14 +231,14 @@ def main():
             logger.error(f"Failed to write JSON report: {str(e)}")
         
         # Exit with code 1 if vulnerabilities found, 0 if clean
-        exit(1 if findings else 0)
+        sys.exit(1 if findings else 0)
     
     except KeyboardInterrupt:
         print("\n[!] Scan interrupted by user")
-        exit(2)
+        sys.exit(2)
     except Exception as e:
         print(f"[ERROR] Unexpected error: {str(e)}")
-        exit(3)
+        sys.exit(3)
 
 if __name__ == "__main__":
     main()
