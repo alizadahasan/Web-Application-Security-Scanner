@@ -10,6 +10,8 @@ from modules.checks_xss import XSSScanner
 from modules.checks_csrf import CSRFScanner
 from modules.crawler import Crawler
 
+VALID_MODULES = ("sqli", "xss", "csrf")
+
 def parse_args():
     """Parse command line arguments for the security scanner."""
     parser = argparse.ArgumentParser(
@@ -100,6 +102,12 @@ Examples:
     parsed_url = urlparse(args.url)
     if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
         parser.error("--url must be a valid absolute HTTP or HTTPS URL")
+
+    modules_list = get_modules_to_scan(args.modules)
+    unknown_modules = [module for module in modules_list if module not in VALID_MODULES]
+    if unknown_modules:
+        parser.error(f"--modules contains unknown module(s): {', '.join(unknown_modules)}")
+    args.modules = modules_list
     
     # Validate timeout value
     if args.timeout <= 0:
@@ -129,13 +137,13 @@ def deduplicate_findings(findings):
 
 def get_modules_to_scan(modules_arg):
     """Parse modules argument and return list of modules to scan."""
-    modules_list = [m.strip() for m in modules_arg.split(",") if m.strip()]
+    modules_list = [m.strip().lower() for m in modules_arg.split(",") if m.strip()]
     
     # Handle "all" keyword
     if "all" in modules_list:
-        return ["sqli", "xss", "csrf"]
+        return list(VALID_MODULES)
     
-    return modules_list
+    return list(dict.fromkeys(modules_list))
 
 def main():
     """Main entry point for the security scanner application."""
@@ -160,8 +168,7 @@ def main():
             "csrf": lambda: CSRFScanner(logger, http, delay_between_requests=args.delay)
         }
         
-        # Parse modules (handle "all" keyword)
-        modules_list = get_modules_to_scan(args.modules)
+        modules_list = args.modules
         logger.info(f"Modules to run: {', '.join(modules_list)}")
         
         # Determine which URLs to scan
@@ -179,34 +186,25 @@ def main():
         for url in urls_to_scan:
             logger.info(f"Scanning URL: {url}")
             for module in modules_list:
-                if module in scanners:
-                    scanner = scanners[module]()
-                    module_findings = scanner.scan(url)
-                    findings.extend(module_findings)
-                    if module_findings:
-                        logger.info(f"{scanner.__class__.__name__} found {len(module_findings)} vulnerability(s) in {url}")
-                else:
-                    logger.warn(f"Unknown module: {module}")
+                scanner = scanners[module]()
+                module_findings = scanner.scan(url)
+                findings.extend(module_findings)
+                if module_findings:
+                    logger.info(f"{scanner.__class__.__name__} found {len(module_findings)} vulnerability(s) in {url}")
         
         # Deduplicate findings to avoid reporting the same vulnerability multiple times
         findings = deduplicate_findings(findings)
         
-        # Generate summary statistics
-        if findings:
-            summary = report.get_summary() if hasattr(report, 'get_summary') else None
-            if summary is None:
-                sqli_count = sum(1 for f in findings if f["type"] == "SQL Injection")
-                xss_count = sum(1 for f in findings if f["type"] == "Cross-Site Scripting (XSS)")
-                csrf_count = sum(1 for f in findings if f["type"] == "Cross-Site Request Forgery (CSRF)")
-                logger.info(f"Scan complete. Summary: {sqli_count} SQL Injection, {xss_count} XSS, {csrf_count} CSRF findings.")
-            else:
-                logger.info(f"Scan complete. Summary: {summary['sqli']} SQL Injection, {summary['xss']} XSS, {summary['csrf']} CSRF findings.")
-        else:
-            logger.info("Scan complete. No vulnerabilities found.")
-        
         # Add all findings to the report
         for finding in findings:
             report.add_finding(finding)
+
+        # Generate summary statistics
+        if findings:
+            summary = report.get_summary()
+            logger.info(f"Scan complete. Summary: {summary['sqli']} SQL Injection, {summary['xss']} XSS, {summary['csrf']} CSRF findings.")
+        else:
+            logger.info("Scan complete. No vulnerabilities found.")
         
         # Ensure output directory exists and generate reports
         os.makedirs(args.outdir, exist_ok=True)

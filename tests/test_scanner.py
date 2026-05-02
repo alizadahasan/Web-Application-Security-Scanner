@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from modules.checks_csrf import CSRFScanner
 from modules.checks_xss import XSSScanner
 from modules.sql_injection import SQLInjectionScanner
+from scanner import get_modules_to_scan
 
 class MockHttpClient:
     """Mock HTTP client for testing - simulates web server responses without network calls."""
@@ -23,6 +24,15 @@ class MockHttpClient:
     def post(self, url, data=None):
         # Use url as-is for test mapping
         return SimpleNamespace(text=self.html_map.get(url, ""), headers={}, status_code=200)
+
+# ---------------- CLI Helper Test Cases ----------------
+def test_get_modules_to_scan_normalizes_and_deduplicates():
+    """Test module parsing normalizes case and removes duplicates."""
+    assert get_modules_to_scan("XSS, sqli, xss") == ["xss", "sqli"]
+
+def test_get_modules_to_scan_all_keyword():
+    """Test all keyword expands to every supported module."""
+    assert get_modules_to_scan("all") == ["sqli", "xss", "csrf"]
 
 # ---------------- CSRF Test Cases ----------------
 def test_csrf_detection():
