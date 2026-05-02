@@ -1,9 +1,11 @@
 import pytest
+from unittest.mock import patch
 from types import SimpleNamespace
 from modules.checks_csrf import CSRFScanner
 from modules.checks_xss import XSSScanner
 from modules.sql_injection import SQLInjectionScanner
-from scanner import get_modules_to_scan
+from modules.reporter import Report
+from scanner import get_modules_to_scan, parse_args
 
 class MockHttpClient:
     """Mock HTTP client for testing - simulates web server responses without network calls."""
@@ -33,6 +35,55 @@ def test_get_modules_to_scan_normalizes_and_deduplicates():
 def test_get_modules_to_scan_all_keyword():
     """Test all keyword expands to every supported module."""
     assert get_modules_to_scan("all") == ["sqli", "xss", "csrf"]
+
+def test_parse_args_rejects_invalid_url():
+    """Test CLI parsing rejects non-absolute HTTP URLs."""
+    with patch("sys.argv", ["scanner.py", "--url", "not-a-url"]):
+        with pytest.raises(SystemExit) as exc:
+            parse_args()
+    assert exc.value.code == 2
+
+def test_parse_args_rejects_unknown_module():
+    """Test CLI parsing rejects unknown modules before scanning."""
+    with patch("sys.argv", ["scanner.py", "--url", "http://test.local", "--modules", "sqli,bad"]):
+        with pytest.raises(SystemExit) as exc:
+            parse_args()
+    assert exc.value.code == 2
+
+def test_parse_args_normalizes_modules():
+    """Test CLI parsing normalizes and stores selected modules."""
+    with patch("sys.argv", ["scanner.py", "--url", "http://test.local", "--modules", "XSS,sqli,xss"]):
+        args = parse_args()
+    assert args.modules == ["xss", "sqli"]
+
+def test_report_summary_counts_findings():
+    """Test report summary reflects findings added to the report."""
+    report = Report("http://test.local")
+    report.add_finding({
+        "type": "SQL Injection",
+        "location": "query",
+        "url": "http://test.local/?id=1",
+        "method": "GET",
+        "param": "id",
+        "payload": "'",
+        "evidence": "SQL syntax",
+    })
+    report.add_finding({
+        "type": "Cross-Site Scripting (XSS)",
+        "location": "query",
+        "url": "http://test.local/?q=x",
+        "method": "GET",
+        "param": "q",
+        "payload": "<script>",
+        "evidence": "script context",
+    })
+
+    assert report.get_summary() == {
+        "total": 2,
+        "sqli": 1,
+        "xss": 1,
+        "csrf": 0,
+    }
 
 # ---------------- CSRF Test Cases ----------------
 def test_csrf_detection():

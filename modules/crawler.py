@@ -3,6 +3,7 @@ Simple BFS crawler for discovering links and forms within the same domain.
 This is intentionally small and conservative (no JS execution).
 """
 
+from collections import deque
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 import time
@@ -40,13 +41,14 @@ class Crawler:
         base_domain = parsed_start.netloc
         
         # BFS queue and tracking sets
-        to_visit = [start_url]  # URLs waiting to be crawled
+        to_visit = deque([start_url])  # URLs waiting to be crawled
         seen = set()            # URLs already visited
+        queued = {start_url}     # URLs already queued
         discovered = []         # Results: (url, parsed_content) tuples
 
         # Continue crawling while there are URLs and we haven't hit the page limit
         while to_visit and len(seen) < self.max_pages:
-            url = to_visit.pop(0)  # Get next URL from queue (FIFO)
+            url = to_visit.popleft()  # Get next URL from queue (FIFO)
             
             if url in seen:
                 continue  # Skip if already visited
@@ -72,9 +74,10 @@ class Crawler:
                     
                     # Only follow same-domain links that haven't been seen
                     if (p.netloc == base_domain and 
-                        target not in seen and 
-                        target not in to_visit):
+                        target not in seen and
+                        target not in queued):
                         to_visit.append(target)  # Add to queue for crawling
+                        queued.add(target)
                         
                 # Note: forms are preserved in the 'soup' returned in discovered list for later analysis
                 

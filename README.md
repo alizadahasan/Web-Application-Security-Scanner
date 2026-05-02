@@ -13,6 +13,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Install the requirements before running the scanner or test suite. The tests use `pytest`, which is included in `requirements.txt`.
+
 ### Running the Scanner
 
 #### Basic Public Site Scanning
@@ -201,6 +203,7 @@ finding = {
 
 ### Running Tests
 ```bash
+pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
