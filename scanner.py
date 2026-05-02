@@ -153,6 +153,7 @@ def main():
         args = parse_args()
         logger = Logger(args.verbose)
         
+        logger.warn("Only scan systems you own or have explicit permission to test.")
         logger.info(f"Initializing scanner with timeout: {args.timeout}s, delay: {args.delay}s")
         
         # Initialize HTTP client with custom timeout
